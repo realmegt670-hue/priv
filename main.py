@@ -18,7 +18,14 @@ def run_git_command(command, env=None):
         return False
     return True
 
-def generate_commits(num_commits):
+def parse_date(date_str):
+    """Parses date string in YYYY-MM-DD format."""
+    try:
+        return datetime.strptime(date_str.strip(), "%Y-%m-%d")
+    except ValueError:
+        return None
+
+def generate_commits(start_date, end_date, num_commits):
     filename = "contribution_log.txt"
     
     # Ensure the target file exists
@@ -26,32 +33,36 @@ def generate_commits(num_commits):
         with open(filename, "w") as f:
             f.write("Git Commit Activity Log\n")
 
-    today = datetime.now()
-    one_year_ago = today - timedelta(days=365)
+    # Calculate total seconds between start and end date
+    time_delta = end_date - start_date
+    total_seconds = int(time_delta.total_seconds())
 
-    print(f"\nGenerating {num_commits} backdated commits between {one_year_ago.strftime('%Y-%m-%d')} and {today.strftime('%Y-%m-%d')}...\n")
+    if total_seconds <= 0:
+        print("Error: End date must be after start date.")
+        return
+
+    print(f"\nGenerating {num_commits} commits between {start_date.strftime('%Y-%m-%d')} and {end_date.strftime('%Y-%m-%d')}...\n")
 
     for i in range(1, num_commits + 1):
-        # Pick a random number of days and seconds ago within the past year
-        random_days = random.randint(0, 365)
-        random_seconds = random.randint(0, 86400)
-        commit_date = today - timedelta(days=random_days, seconds=random_seconds)
+        # Generate a random timestamp within the specified date range
+        random_seconds = random.randint(0, total_seconds)
+        commit_date = start_date + timedelta(seconds=random_seconds)
         date_str = commit_date.strftime("%Y-%m-%dT%H:%M:%S")
 
-        # Make a small change to the file
+        # Append entry to the file
         with open(filename, "a") as f:
-            f.write(f"Commit {i} - {date_str}\n")
+            f.write(f"Custom Commit {i} - {date_str}\n")
 
-        # Stage the file
+        # Stage file
         if not run_git_command(f"git add {filename}"):
             break
 
-        # Set environment variables for both author and committer dates
+        # Set environment variables for backdating
         env = os.environ.copy()
         env["GIT_AUTHOR_DATE"] = date_str
         env["GIT_COMMITTER_DATE"] = date_str
 
-        commit_msg = f"Backdated commit #{i}"
+        commit_msg = f"Custom backdated commit #{i}"
         commit_cmd = f'git commit -m "{commit_msg}"'
 
         if run_git_command(commit_cmd, env=env):
@@ -60,20 +71,31 @@ def generate_commits(num_commits):
             print(f"Failed at commit {i}")
             break
 
-    print("\nFinished creating commits!")
-    print("Run 'git push origin main' (or your target branch) to sync with GitHub.")
+    print("\nFinished creating custom commits!")
+    print("Run your push command to update GitHub.")
 
 if __name__ == "__main__":
-    # Ensure this directory is a git repository
     if not os.path.exists(".git"):
         print("Error: This directory is not a Git repository. Run 'git init' first.")
     else:
-        try:
-            commits_input = input("Enter the number of commits to generate: ")
-            num_commits = int(commits_input)
-            if num_commits <= 0:
-                print("Please enter a positive integer.")
-            else:
-                generate_commits(num_commits)
-        except ValueError:
-            print("Invalid input. Please enter a valid number.")
+        print("=== Custom Date Range Commit Generator ===")
+        start_input = input("Enter start date (YYYY-MM-DD): ")
+        end_input = input("Enter end date (YYYY-MM-DD): ")
+        
+        start_date = parse_date(start_input)
+        end_date = parse_date(end_input)
+
+        if not start_date or not end_date:
+            print("Invalid date format. Please use YYYY-MM-DD.")
+        elif start_date >= end_date:
+            print("Start date must be earlier than end date.")
+        else:
+            try:
+                commits_input = input("Enter the number of commits to generate: ")
+                num_commits = int(commits_input)
+                if num_commits <= 0:
+                    print("Please enter a positive integer.")
+                else:
+                    generate_commits(start_date, end_date, num_commits)
+            except ValueError:
+                print("Invalid number input.")
